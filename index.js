@@ -1,39 +1,44 @@
 const WebSocket = require('ws');
-const url = 'ws://your-server-url.com';
-const headers = {
-  Authorization: 'Bearer your-token',
-  CustomHeader: 'custom-value'
-};
+const { EventEmitter } = require('node:events');
 
-class DisLinkClient {
+class DisLinkClient extends EventEmitter {
     servers = [];
     constructor(config) {
+        super();
         this.config = config;
     }
-    add = async function(server) {
-        const lavalink = new DisLinkServer(`${server.url}:${server.port}/v4/websocket`, {
+    add = function(server) {
+        this.emit('add', server);
+        const lavalink = new DisLinkNode(`${server.url}:${server.port}/v4/websocket`, {
             headers:{
                 "User-Id": server.id,
                 "Authorization": server.password,
                 "Client-Name": server.clientName || `DisLink/v0.0.1`
             }
         }, server.name);
-        this.servers = {...this.server, };
-        return;
+        this.servers.push(lavalink);
+        lavalink.on('ready', (msg) => {
+            this.emit('ready', msg);
+        });
+        return this;
     }
 }
 
-class DisLinkServer {
+class DisLinkNode extends EventEmitter{
+    url = null;
+    port = null;
     password = null;
     clientName = null;
+    ws = null;
     constructor(url, headers, name) {
+        super();
         this.name = name;
         this.password = headers.headers.Authorization;
         this.id = headers.headers.id;
         const lavalink = new WebSocket(url, headers);
-        this.server = lavalink;
-        lavalink.on('open', function() {
-            console.log(`Node ${name} is ready.`);
+        this.ws = lavalink;
+        lavalink.on('open', () => {
+            this.emit('ready', name);
         });
     }
 }
