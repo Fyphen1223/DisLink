@@ -4,10 +4,20 @@ const axios = require('axios');
 
 class DisLinkClient extends EventEmitter {
     servers = [];
-    constructor(config) {
+    gateway = null;
+    joinQueue = {};
+    constructor(client) {
         super();
-        this.config = config;
-        this.token = config.token;
+        this.discord = client;
+        client.on('raw', async(data) => {
+            if(data.t == "VOICE_STATE_UPDATE" || data.t == "VOICE_SERVER_UPDATE") {
+                if(data.t === "VOICE_STATE_UPDATE") {
+                    console.log(data.d.session_id);
+                } else {
+                    console.log(data.d.token, data.d.endpoint, data.d.guild_id);
+                }
+            }
+        });
     }
     init = async function() {
         const data = await axios.get('https://discordapp.com/api/gateway');
@@ -51,6 +61,25 @@ class DisLinkClient extends EventEmitter {
     }
     getIdealNode = function() {
         return this.servers[0];
+    }
+    join = async function(options) {
+        const channel = this.discord.channels.cache.get(options.channelId);
+        const connection = joinVoiceChannel({
+            channelId: channel.id,
+            guildId: channel.guild.id,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+            selfDeaf: options.selfDeaf || false,
+            seldMute: options.seldMute || false,
+        });
+        const dataForQueue = {
+            [channel.guild.id]: {
+                token: "",
+                sessionId: "",
+                endpoint: "",
+            }
+        }
+        this.joinQueue = {...this.joinQueue, ...dataForQueue};
+        console.log(joinQueue);
     }
 }
 
