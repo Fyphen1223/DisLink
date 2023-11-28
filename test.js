@@ -6,7 +6,7 @@ async function main() {
         console.log(`Node ${msg} is ready!`);
     });
     lavalinkClient.add({
-        name: "Node 1",
+        name: "Node 2",
         url: "http://localhost",
         port: 2333,
         password: "youshallnotpass",

@@ -30,15 +30,25 @@ class DisLinkNode extends EventEmitter{
     password = null;
     clientName = null;
     ws = null;
+    sessionId = null;
+    status = null;
+    headers = null;
     constructor(url, headers, name) {
         super();
+        this.url = url;
+        this.headers = headers;
         this.name = name;
         this.password = headers.headers.Authorization;
         this.id = headers.headers.id;
         const lavalink = new WebSocket(url, headers);
         this.ws = lavalink;
-        lavalink.on('open', () => {
-            this.emit('ready', name);
+        lavalink.on('message', (msg) => {
+            const data = JSON.parse(msg.toString());
+            if(data.op === 'ready') {
+                this.emit('ready', name);
+                this.status = 'ready';
+                this.sessionId = data.sessionId;
+            }
         });
     }
 }
