@@ -7,6 +7,7 @@ const lavalinkClient = new dislink.DisLinkClient({
 async function main() {
     lavalinkClient.on('ready', async function(msg) {
         console.log(`Node ${msg} is ready!`);
+        lavalinkClient.init();
     });
     lavalinkClient.add({
         name: "Node 2",
