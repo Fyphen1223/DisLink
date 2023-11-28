@@ -14,17 +14,12 @@ const lavalinkClient = new dislink.DisLinkClient({
     client: client,
 });
 
-const { joinVoiceChannel } = require('@discordjs/voice');
-
 client.on('ready', async () => {
     console.log('Logged in');
-    const channel = await client.channels.cache.get('919809544648020012');
-    const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: channel.guild.id,
-        adapterCreator: channel.guild.voiceAdapterCreator,
-        selfDeaf: false,
+    lavalinkClient.join({
+        channelId: '919809544648020012',
         selfMute: false,
+        selfDeaf: false,
     });
 });
 

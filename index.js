@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const { EventEmitter } = require('node:events');
 const axios = require('axios');
+const { joinVoiceChannel } = require('@discordjs/voice');
 
 class DisLinkClient extends EventEmitter {
     servers = [];
@@ -8,39 +9,23 @@ class DisLinkClient extends EventEmitter {
     joinQueue = {};
     constructor(client) {
         super();
-        this.discord = client;
-        client.on('raw', async(data) => {
+        this.discord = client.client;
+        this.discord.on('raw', async(data) => {
             if(data.t == "VOICE_STATE_UPDATE" || data.t == "VOICE_SERVER_UPDATE") {
+                console.log(data);
                 if(data.t === "VOICE_STATE_UPDATE") {
                     console.log(data.d.session_id);
+                    this.joinQueue[data.d.guild_id].sessionId = data.d.session_id;
                 } else {
-                    console.log(data.d.token, data.d.endpoint, data.d.guild_id);
+                    this.joinQueue[data.d.guild_id].token = data.d.token;
+                    this.joinQueue[data.d.guild_id].endpoint = data.d.endpoint;
+                    const node = this.getIdealNode();
+                    node.joinVoiceChannel({
+                        token: this.joinQueue[data.d.guild_id].token,
+                        sessionId: this.joinQueue[data.d.guild_id].sessionId,
+                        token: this.joinQueue[data.d.guild_id].endpoint
+                    });
                 }
-            }
-        });
-    }
-    init = async function() {
-        const data = await axios.get('https://discordapp.com/api/gateway');
-        const gateway = new WebSocket(`${data.data.url}?v=10&encoding=json`);
-        gateway.on('message', (msg) => {
-            const data = JSON.parse(msg.toString());
-            console.log(data);
-            if(data.op == 10) {
-                setInterval(function() {
-                    gateway.send(JSON.stringify({ "op": 1, "d": null }));
-                }, data.d.heartbeat_interval);
-                gateway.send(JSON.stringify({
-                    "op": 2,
-                    "d": {
-                      "token": this.token,
-                      "intents": 128,
-                      "properties": {
-                      }
-                    }
-                }));
-            }
-            if(data.t === 'READY') {
-                this.emit('discordReady');
             }
         });
     }
@@ -79,7 +64,6 @@ class DisLinkClient extends EventEmitter {
             }
         }
         this.joinQueue = {...this.joinQueue, ...dataForQueue};
-        console.log(joinQueue);
     }
 }
 
@@ -131,7 +115,15 @@ class DisLinkNode extends EventEmitter{
         const res = await axios.get(`${this.url}/v4/sessions/${this.sessionId}/players`);
         return res.data;
     }
-    join = async function(guildId, channelId) {
+    joinVoiceChannel = async function(options) {
+        const res = axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${this.guildId}?noReplace=false`, {
+            voice: {
+                token: options.token,
+                sessionId: options.sessionId,
+                endpoint: options.endpoint
+            }
+        });
+        console.log(res.data);
     }
 }
 
