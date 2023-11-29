@@ -10,24 +10,6 @@ class DisLinkClient extends EventEmitter {
     constructor(client) {
         super();
         this.discord = client.client;
-        this.discord.on('raw', async(data) => {
-            if(data.t == "VOICE_STATE_UPDATE" || data.t == "VOICE_SERVER_UPDATE") {
-                console.log(data);
-                if(data.t === "VOICE_STATE_UPDATE") {
-                    console.log(data.d.session_id);
-                    this.joinQueue[data.d.guild_id].sessionId = data.d.session_id;
-                } else {
-                    this.joinQueue[data.d.guild_id].token = data.d.token;
-                    this.joinQueue[data.d.guild_id].endpoint = data.d.endpoint;
-                    const node = this.getIdealNode();
-                    node.joinVoiceChannel({
-                        token: this.joinQueue[data.d.guild_id].token,
-                        sessionId: this.joinQueue[data.d.guild_id].sessionId,
-                        token: this.joinQueue[data.d.guild_id].endpoint
-                    });
-                }
-            }
-        });
     }
     add = function(server) {
         this.emit('add', server);
@@ -37,7 +19,7 @@ class DisLinkClient extends EventEmitter {
                 "Authorization": server.password,
                 "Client-Name": server.clientName || `DisLink/v0.0.1`
             }
-        }, server.name, this.token);
+        }, server.name, this.discord);
         this.servers.push(lavalink);
         lavalink.on('ready', (msg) => {
             this.emit('ready', msg);
@@ -47,27 +29,8 @@ class DisLinkClient extends EventEmitter {
     getIdealNode = function() {
         return this.servers[0];
     }
-    join = async function(options) {
-        const channel = this.discord.channels.cache.get(options.channelId);
-        const connection = joinVoiceChannel({
-            channelId: channel.id,
-            guildId: channel.guild.id,
-            adapterCreator: channel.guild.voiceAdapterCreator,
-            selfDeaf: options.selfDeaf || false,
-            seldMute: options.seldMute || false,
-        });
-        const dataForQueue = {
-            [channel.guild.id]: {
-                token: "",
-                sessionId: "",
-                endpoint: "",
-            }
-        }
-        this.joinQueue = {...this.joinQueue, ...dataForQueue};
-    }
 }
-
-class DisLinkNode extends EventEmitter{
+class DisLinkNode extends EventEmitter {
     url = null;
     port = null;
     password = null;
@@ -77,15 +40,15 @@ class DisLinkNode extends EventEmitter{
     status = null;
     headers = null;
     stats = null;
-    token = null;
-    constructor(url, headers, name, token) {
+    guildId = null;
+    constructor(url, headers, name, client) {
         super();
-        this.token = token;
         this.url = url;
         this.headers = headers;
         this.name = name;
         this.password = headers.headers.Authorization;
         this.id = headers.headers.id;
+        this.client = client;
         const lavalink = new WebSocket(`${url}/v4/websocket`, headers);
         this.ws = lavalink;
         lavalink.on('open', () => {
@@ -110,32 +73,92 @@ class DisLinkNode extends EventEmitter{
             }
         });
     }
-    getPlayers = async function () {
+    getPlayers = async() =>{
         if(!this.sessionId) throw new Error('The node is waiting for connecting');
         const res = await axios.get(`${this.url}/v4/sessions/${this.sessionId}/players`);
         return res.data;
     }
-    joinVoiceChannel = async function(options) {
-        const res = axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${this.guildId}?noReplace=false`, {
+    join = async(options) => {
+        const channel = this.client.channels.cache.get(options.channelId);
+        const connection = joinVoiceChannel({
+            channelId: channel.id,
+            guildId: channel.guild.id,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+            selfDeaf: options.selfDeaf || false,
+            seldMute: options.seldMute || false,
+        });
+        const dataForQueue = {
+            [channel.guild.id]: {
+                token: "",
+                sessionId: "",
+                endpoint: "",
+                voiceChannelId: channel.id
+            }
+        }
+        this.joinQueue = {...this.joinQueue, ...dataForQueue};
+        this.client.on('raw', (data) => {
+            if(data.t.guild_id !== channel.guild.id) return;
+            if(data.t == "VOICE_STATE_UPDATE" || data.t == "VOICE_SERVER_UPDATE") {
+                if(data.t === "VOICE_STATE_UPDATE") {
+                    this.joinQueue[data.d.guild_id].sessionId = data.d.session_id;
+                } else {
+                    this.joinQueue[data.d.guild_id].token = data.d.token;
+                    this.joinQueue[data.d.guild_id].endpoint = data.d.endpoint;
+                    this.joinVoiceChannel({
+                        guildId: data.d.guild_id,
+                        token: this.joinQueue[data.d.guild_id].token,
+                        sessionId: this.joinQueue[data.d.guild_id].sessionId,
+                        endpoint: this.joinQueue[data.d.guild_id].endpoint
+                    });
+                    const player = new DisLinkPlayer({
+                        DisLinkNode: this,
+                        guildId: options.guildId,
+                        voiceChannelId: options.voiceChannelId,
+                    })
+                    return player;
+                }
+            }
+        });
+    }
+    joinVoiceChannel = async(options) => {
+        await axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, {
             voice: {
                 token: options.token,
                 sessionId: options.sessionId,
                 endpoint: options.endpoint
             }
+        }, {
+            headers: {
+                "Authorization": this.password
+            }
         });
-        console.log(res.data);
+    }
+    resolve = async(keyword) => {
+        const res = await axios.get(`${this.url}/v4/loadtracks?identifier=${keyword}`, {
+            headers: {
+                "Authorization": this.password
+            }
+        });
+        return res.data;
     }
 }
-
 class DisLinkPlayer extends EventEmitter {
     constructor(option) {
+        super();
         this.guildId = option.guildId;
         this.voiceChannelId = option.voiceChannelId;
         this.DisLinkNode = option.DisLinkNode;
-        this.DisLinkClient = option.DisLinkClient;
-        this.token = option.token;
     }
-
+    play = async function(data) {
+        const res = await axios.patch(`${this.DisLinkNode.url}/v4/sessions/${this.DisLinkNode.sessionId}/players/${this.guildId}?noReplace=false`, {
+            encodedTrack: data
+        }, {
+            headers: {
+                "Authorization": this.DisLinkNode.password
+            }
+        });
+        return res.data;
+    }
 }
 
 module.exports = {DisLinkClient};

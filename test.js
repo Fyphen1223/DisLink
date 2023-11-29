@@ -15,12 +15,23 @@ const lavalinkClient = new dislink.DisLinkClient({
 });
 
 client.on('ready', async () => {
+    lavalinkClient.add({
+        url: "http://localhost",
+        port: 2333,
+        id: "1132870841886060637",
+        password: "youshallnotpass",
+        name: "DisLink Node 1"
+    });
     console.log('Logged in');
-    lavalinkClient.join({
+    const node = lavalinkClient.getIdealNode();
+    const res = await node.resolve("ytsearch:Alan Walker");
+    const player = node.join({
         channelId: '919809544648020012',
+        guildId: '919809544648020008',
         selfMute: false,
         selfDeaf: false,
     });
+    player.play(res.data[0].encoded);
 });
 
 client.login(config.token);
