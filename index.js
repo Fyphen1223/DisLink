@@ -80,7 +80,7 @@ class DisLinkNode extends EventEmitter {
     }
     join = async(options) => {
         const channel = this.client.channels.cache.get(options.channelId);
-        const connection = joinVoiceChannel({
+        joinVoiceChannel({
             channelId: channel.id,
             guildId: channel.guild.id,
             adapterCreator: channel.guild.voiceAdapterCreator,
@@ -96,32 +96,34 @@ class DisLinkNode extends EventEmitter {
             }
         }
         this.joinQueue = {...this.joinQueue, ...dataForQueue};
-        this.client.on('raw', (data) => {
-            if(data.t.guild_id !== channel.guild.id) return;
+        this.client.on('raw',async (data) => {
+            if(data.d.guild_id !== channel.guild.id) return;
             if(data.t == "VOICE_STATE_UPDATE" || data.t == "VOICE_SERVER_UPDATE") {
                 if(data.t === "VOICE_STATE_UPDATE") {
                     this.joinQueue[data.d.guild_id].sessionId = data.d.session_id;
                 } else {
                     this.joinQueue[data.d.guild_id].token = data.d.token;
                     this.joinQueue[data.d.guild_id].endpoint = data.d.endpoint;
-                    this.joinVoiceChannel({
+                    await this.joinVoiceChannel({
                         guildId: data.d.guild_id,
                         token: this.joinQueue[data.d.guild_id].token,
                         sessionId: this.joinQueue[data.d.guild_id].sessionId,
                         endpoint: this.joinQueue[data.d.guild_id].endpoint
                     });
+                    await this.emit('voiceConnected', player, data.d.guild_id, options.voiceChannelId);
                     const player = new DisLinkPlayer({
                         DisLinkNode: this,
                         guildId: options.guildId,
                         voiceChannelId: options.voiceChannelId,
-                    })
+                    });
                     return player;
                 }
             }
         });
     }
     joinVoiceChannel = async(options) => {
-        await axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, {
+        console.log('Hi!');
+        return await axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, {
             voice: {
                 token: options.token,
                 sessionId: options.sessionId,
