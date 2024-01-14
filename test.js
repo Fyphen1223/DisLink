@@ -24,13 +24,13 @@ client.on('ready', async () => {
     });
     console.log('Logged in');
     const node = lavalinkClient.getIdealNode();
-    const res = await node.resolve("ytsearch:Alan Walker");
     const player = await node.join({
         channelId: '919809544648020012',
         guildId: '919809544648020008',
         selfMute: false,
         selfDeaf: false,
     });
+    const res = await node.resolve("ytsearch:Alan Walker");
     player.play(res.data[0].encoded);
 });
 

@@ -69,7 +69,7 @@ class DisLinkNode extends EventEmitter {
                 this.emit('stats', data);
             }
             if(data.op === 'event') {
-
+                this.emit('events', data);
             }
         });
     }
@@ -96,7 +96,7 @@ class DisLinkNode extends EventEmitter {
             }
         }
         this.joinQueue = {...this.joinQueue, ...dataForQueue};
-        this.client.on('raw',async (data) => {
+        this.client.on('raw', async (data) => {
             if(data.d.guild_id !== channel.guild.id) return;
             if(data.t == "VOICE_STATE_UPDATE" || data.t == "VOICE_SERVER_UPDATE") {
                 if(data.t === "VOICE_STATE_UPDATE") {
@@ -104,36 +104,29 @@ class DisLinkNode extends EventEmitter {
                 } else {
                     this.joinQueue[data.d.guild_id].token = data.d.token;
                     this.joinQueue[data.d.guild_id].endpoint = data.d.endpoint;
-                    await this.joinVoiceChannel({
-                        guildId: data.d.guild_id,
-                        token: this.joinQueue[data.d.guild_id].token,
-                        sessionId: this.joinQueue[data.d.guild_id].sessionId,
-                        endpoint: this.joinQueue[data.d.guild_id].endpoint
-                    });
-                    await this.emit('voiceConnected', player, data.d.guild_id, options.voiceChannelId);
-                    const player = new DisLinkPlayer({
-                        DisLinkNode: this,
-                        guildId: options.guildId,
-                        voiceChannelId: options.voiceChannelId,
-                    });
-                    return player;
                 }
             }
         });
-    }
-    joinVoiceChannel = async(options) => {
-        console.log('Hi!');
-        return await axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, {
-            voice: {
-                token: options.token,
-                sessionId: options.sessionId,
-                endpoint: options.endpoint
-            }
-        }, {
-            headers: {
-                "Authorization": this.password
-            }
+
+        while(this.joinQueue[channel.guild.id].token) {
+        }
+        const player = new DisLinkPlayer({
+            DisLinkNode: this,
+            guildId: channel.guild.id,
+            voiceChannelId: options.channelId,
+            sessionId: this.joinQueue[channel.guild.id].sessionId,
+            endpoint: this.joinQueue[channel.guild.id].endpoint
         });
+        player.token = this.joinQueue[channel.guild.id].token;
+        player.sessionId = this.joinQueue[channel.guild.id].sessionId;
+        player.endpoint = this.joinQueue[channel.guild.id].endpoint;
+        player.joinVoiceChannel({
+            token: player.token,
+            sessionId: player.sessionId,
+            endpoint: player.endpoint
+        });
+        await this.emit('voiceConnected', player, channel.guild.id, options.channelId);      
+        return player;
     }
     resolve = async(keyword) => {
         const res = await axios.get(`${this.url}/v4/loadtracks?identifier=${keyword}`, {
@@ -151,9 +144,24 @@ class DisLinkPlayer extends EventEmitter {
         this.voiceChannelId = option.voiceChannelId;
         this.DisLinkNode = option.DisLinkNode;
     }
+    joinVoiceChannel = async(options) => {
+        const res = await axios.patch(`${this.url}/v4/sessions/${this.sessionId}/players/${options.guildId}?noReplace=false`, {
+            voice: {
+                token: options.token,
+                sessionId: options.sessionId,
+                endpoint: options.endpoint
+            }
+        }, {
+            headers: {
+                "Authorization": this.password
+            }
+        });
+        console.log(res.data);
+        return res;
+    }
     play = async function(data) {
-        const res = await axios.patch(`${this.DisLinkNode.url}/v4/sessions/${this.DisLinkNode.sessionId}/players/${this.guildId}?noReplace=false`, {
-            encodedTrack: data
+        const res = await axios.patch(`${this.DisLinkNode.url}/v4/sessions/${this.DisLinkNode.sessionId}/players/${this.guildId}?noReplace=true`, {
+            encodedTrack: data,
         }, {
             headers: {
                 "Authorization": this.DisLinkNode.password
