@@ -1,0 +1,27 @@
+{
+  "name": "dislink",
+  "version": "0.0.1",
+  "description": "The most powerful, reliable, yet simple and minimum Lavalink client written in pure JS.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fyphen1223/DisLink.git"
+  },
+  "keywords": [
+    "Lavalink",
+    "Music",
+    "Discord"
+  ],
+  "author": "Fyphen#0 on Discord",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Fyphen1223/DisLink/issues"
+  },
+  "homepage": "https://github.com/Fyphen1223/DisLink#readme",
+  "dependencies": {
+    "ws": "^8.14.2"
+  }
+}
